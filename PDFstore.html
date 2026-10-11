@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>PDF Store - Secure Access</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', sans-serif; }
+  body { background: #0f172a; color: #e2e8f0; min-height: 100vh; }
+
+  header {
+    background: linear-gradient(90deg, #1e293b, #334155);
+    padding: 18px 30px;
+    display: flex; justify-content: space-between; align-items: center;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    position: sticky; top: 0; z-index: 100;
+  }
+  header h1 { color: #38bdf8; font-size: 22px; }
+  header .badge { background: #22c55e; color: #fff; padding: 5px 12px; border-radius: 20px; font-size: 12px; }
+
+  .container { max-width: 1100px; margin: 30px auto; padding: 0 20px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 20px; }
+
+  .card {
+    background: #1e293b; border-radius: 14px; overflow: hidden;
+    transition: 0.3s; border: 1px solid #334155;
+  }
+  .card:hover { transform: translateY(-5px); border-color: #38bdf8; }
+  .card .thumb {
+    height: 160px; background: linear-gradient(135deg, #0ea5e9, #6366f1);
+    display: flex; align-items: center; justify-content: center; font-size: 50px;
+  }
+  .card .info { padding: 16px; }
+  .card h3 { font-size: 16px; margin-bottom: 6px; color: #f1f5f9; }
+  .card p { font-size: 13px; color: #94a3b8; margin-bottom: 12px; }
+  .card .price { color: #22c55e; font-weight: bold; font-size: 20px; margin-bottom: 10px; }
+
+  .btn {
+    display: inline-block; width: 100%; padding: 10px;
+    background: #38bdf8; color: #0f172a; border: none;
+    border-radius: 8px; font-weight: bold; cursor: pointer;
+    transition: 0.2s; text-align: center; font-size: 14px;
+    text-decoration: none;
+  }
+  .btn:hover { background: #0ea5e9; }
+  .btn.green { background: #22c55e; color: #fff; }
+  .btn.green:hover { background: #16a34a; }
+
+  .modal {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.88);
+    justify-content: center; align-items: center;
+    z-index: 999; padding: 20px; overflow-y: auto;
+  }
+  .modal.active { display: flex; }
+  .modal-box {
+    background: #1e293b; border-radius: 14px; padding: 26px;
+    max-width: 520px; width: 100%; border: 1px solid #334155;
+    max-height: 92vh; overflow-y: auto;
+  }
+  .modal-box h2 { color: #38bdf8; margin-bottom: 14px; font-size: 20px; }
+  .modal-box p { font-size: 14px; color: #cbd5e1; margin-bottom: 12px; line-height: 1.6; }
+  .modal-box label { display: block; font-size: 13px; color: #94a3b8; margin-bottom: 6px; margin-top: 10px; }
+  .modal-box input {
+    width: 100%; padding: 12px; border-radius: 8px;
+    border: 1px solid #475569; background: #0f172a;
+    color: #fff; font-size: 15px; margin-bottom: 12px;
+  }
+  .modal-box input:focus { outline: 2px solid #38bdf8; }
+  .modal-box .actions { display: flex; gap: 10px; margin-top: 14px; }
+  .modal-box .actions button { flex: 1; padding: 11px; border-radius: 8px; border: none; cursor: pointer; font-weight: bold; }
+  .btn-cancel { background: #475569; color: #fff; }
+  .btn-pay { background: #22c55e; color: #fff; }
+  .btn-pay:hover { background: #16a34a; }
+
+  .steps {
+    background: #0f172a; padding: 14px; border-radius: 8px;
+    border-left: 4px solid #38bdf8; margin-bottom: 14px;
+  }
+  .steps ol { margin-left: 18px; font-size: 13px; color: #cbd5e1; line-height: 1.8; }
+
+  .code-display {
+    background: linear-gradient(135deg, #16a34a, #22c55e);
+    color: #fff; padding: 20px; border-radius: 12px;
+    text-align: center; margin: 14px 0;
+  }
+  .code-display .label { font-size: 13px; opacity: 0.9; margin-bottom: 8px; }
+  .code-display .code {
+    font-size: 32px; font-weight: bold; letter-spacing: 4px;
+    font-family: 'Courier New', monospace;
+  }
+  .code-display .hint { font-size: 12px; margin-top: 8px; opacity: 0.85; }
+
+  #viewerScreen {
+    display: none; position: fixed; inset: 0;
+    background: #0f172a; z-index: 1000; flex-direction: column;
+  }
+  #viewerScreen.active { display: flex; }
+  .viewer-header {
+    background: #1e293b; padding: 12px 20px;
+    display: flex; justify-content: space-between; align-items: center;
+    border-bottom: 1px solid #334155;
+  }
+  .viewer-header h3 { color: #38bdf8; font-size: 16px; }
+  .viewer-header .close-btn {
+    background: #ef4444; color: #fff; border: none;
+    padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: bold;
+  }
+  .viewer-header .close-btn:hover { background: #dc2626; }
+  .viewer-body { flex: 1; position: relative; overflow: hidden; background: #334155; }
+  #pdfFrame { width: 100%; height: 100%; border: none; background: #fff; }
+
+  .toast {
+    position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+    background: #1e293b; color: #fff; padding: 12px 22px;
+    border-radius: 8px; border-left: 4px solid #38bdf8;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.5);
+    opacity: 0; transition: 0.3s; pointer-events: none; z-index: 9999;
+    max-width: 90%; text-align: center;
+  }
+  .toast.show { opacity: 1; bottom: 50px; }
+  .toast.error { border-color: #ef4444; }
+  .toast.success { border-color: #22c55e; }
+
+  @media print {
+    body * { display: none !important; }
+    body::after {
+      content: "⛔ Printing is disabled.";
+      display: block !important; font-size: 30px; color: red;
+      text-align: center; margin-top: 40vh;
+    }
+  }
+  .no-select {
+    -webkit-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+  }
+</style>
+</head>
+<body class="no-select" oncontextmenu="return false;">
+
+<header>
+  <h1>📚 PDF Store</h1>
+  <span class="badge">🔒 Secure Access</span>
+</header>
+
+<div class="container">
+  <h2 style="margin-bottom:18px; color:#f1f5f9;">Available PDFs</h2>
+  <div class="grid" id="pdfGrid"></div>
+</div>
+
+<!-- PAYMENT MODAL -->
+<div class="modal" id="payModal">
+  <div class="modal-box">
+    <h2 id="modalTitle">🔓 Unlock PDF</h2>
+
+    <div id="payStep">
+      <div class="steps">
+        <ol>
+          <li>Neeche <b>"Pay on Razorpay"</b> button click karein</li>
+          <li>Nayi tab me Razorpay khulega — payment karein</li>
+          <li>Payment ke baad <b>Payment ID</b> copy karein</li>
+          <li>Yahan wapas aakar neeche box me daalein</li>
+          <li>Verify hone par Access Code milega</li>
+        </ol>
+      </div>
+
+      <!-- ✅ FIXED PAYMENT LINK - HAR PDF KE LIYE SAME -->
+      <a id="payLink" href="https://razorpay.me/@sandeshsharma9?amount=EPec5evqGoRk2C8icWNJlQ%3D%3D" target="_blank" rel="noopener" class="btn green" style="margin-bottom:16px; padding:14px; font-size:16px;">
+        💳 Pay on Razorpay →
+      </a>
+
+      <p style="font-size:12px; color:#94a3b8; text-align:center; margin-bottom:10px;">
+        Button kaam na kare? <a id="payLinkFallback" href="https://razorpay.me/@sandeshsharma9?amount=EPec5evqGoRk2C8icWNJlQ%3D%3D" target="_blank" style="color:#38bdf8;">Yahan click karein</a>
+      </p>
+
+      <label>Payment ID / UTR Number:</label>
+      <input type="text" id="paymentRef" placeholder="e.g. pay_QWERTY123456" />
+
+      <div class="actions">
+        <button class="btn-cancel" onclick="closeModal('payModal')">Cancel</button>
+        <button class="btn-pay" onclick="verifyPayment()">✅ Verify & Get Code</button>
+      </div>
+    </div>
+
+    <div id="codeStep" style="display:none;">
+      <div class="code-display">
+        <div class="label">🎉 Payment Verified! Aapka Access Code:</div>
+        <div class="code" id="generatedCode">------</div>
+        <div class="hint">Is code ko save kar lein. Kabhi bhi PDF kholne ke liye chahiye hoga.</div>
+      </div>
+      <button class="btn green" onclick="openAfterCode()">📖 Abhi PDF Kholein</button>
+      <button class="btn-cancel" style="width:100%; margin-top:10px; padding:11px; border-radius:8px; border:none; cursor:pointer; font-weight:bold;" onclick="closeModal('payModal')">Baad Me</button>
+    </div>
+  </div>
+</div>
+
+<!-- CODE MODAL -->
+<div class="modal" id="codeModal">
+  <div class="modal-box">
+    <h2>🔑 Access Code Daalein</h2>
+    <p>Payment ke baad mila Access Code yahan daalein.</p>
+    <input type="text" id="codeInput" placeholder="ACCESS CODE" maxlength="12" style="text-transform:uppercase; letter-spacing:3px; text-align:center; font-size:18px;" />
+    <div class="actions">
+      <button class="btn-cancel" onclick="closeModal('codeModal')">Cancel</button>
+      <button class="btn-pay" onclick="submitCode()">Open PDF</button>
+    </div>
+  </div>
+</div>
+
+<!-- VIEWER -->
+<div id="viewerScreen">
+  <div class="viewer-header">
+    <h3 id="viewerTitle">📄 PDF Viewer</h3>
+    <button class="close-btn" onclick="closeViewer()">✖ Close</button>
+  </div>
+  <div class="viewer-body">
+    <iframe id="pdfFrame" src=""></iframe>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* =========================================================
+   ⚙️ CONFIG — PAYMENT LINK (SAME FOR ALL PDFs)
+   ========================================================= */
+const PAYMENT_LINK = "https://razorpay.me/@sandeshsharma9?amount=EPec5evqGoRk2C8icWNJlQ%3D%3D";
+
+/* =========================================================
+   📚 PDF LIST — YAHAN APNI PDFs DAALEIN
+   =========================================================
+   NOTE: 
+   - pdfUrl me apni PDF ka DIRECT link daalein
+   - accessCode me koi bhi code daalein (customer isi se kholega)
+   - Payment link sabhi ke liye same rahega (upar wala)
+   ========================================================= */
+const PDF_LIST = [
+  {
+    id: "pdf1",
+    title: "Study Notes - Chapter 1",
+    desc: "Complete handwritten notes",
+    price: 10,
+    pdfUrl: "https://chocolate-katy-64.tiiny.site",  // 👈 APNI PDF LINK
+    accessCode: "PDF1-2024"  // 👈 APNA CODE
+  },
+  {
+    id: "pdf2",
+    title: "Practice Question Bank",
+    desc: "500+ solved questions",
+    price: 10,
+    pdfUrl: "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",  // 👈 APNI PDF LINK
+    accessCode: "PDF2-2024"
+  },
+  {
+    id: "pdf3",
+    title: "Formula Handbook",
+    desc: "All formulas in one place",
+    price: 10,
+    pdfUrl: "https://www.orimi.com/pdf-test.pdf",  // 👈 APNI PDF LINK
+    accessCode: "PDF3-2024"
+  }
+];
+
+/* =========================================================
+   🎲 ACCESS CODE GENERATOR
+   ========================================================= */
+function generateAccessCode() {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let code = "";
+  for (let i = 0; i < 8; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
+}
+
+/* =========================================================
+   🖼️ RENDER CARDS
+   ========================================================= */
+const grid = document.getElementById('pdfGrid');
+
+function renderCards() {
+  grid.innerHTML = '';
+  PDF_LIST.forEach(pdf => {
+    const savedCode = localStorage.getItem('code_' + pdf.id);
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `
+      <div class="thumb">📕</div>
+      <div class="info">
+        <h3>${pdf.title}</h3>
+        <p>${pdf.desc}</p>
+        <div class="price">₹${pdf.price}</div>
+        ${savedCode 
+          ? `<button class="btn green" onclick="openWithSavedCode('${pdf.id}')">📖 Open PDF</button>`
+          : `<button class="btn green" onclick="openPayment('${pdf.id}')">🔓 Get Access - ₹${pdf.price}</button>`
+        }
+      </div>
+    `;
+    grid.appendChild(card);
+  });
+}
+renderCards();
+
+/* =========================================================
+   💳 PAYMENT MODAL
+   ========================================================= */
+let currentPdf = null;
+
+function openPayment(pdfId) {
+  currentPdf = PDF_LIST.find(p => p.id === pdfId);
+  if (!currentPdf) return;
+
+  document.getElementById('payStep').style.display = 'block';
+  document.getElementById('codeStep').style.display = 'none';
+  document.getElementById('paymentRef').value = '';
+  document.getElementById('modalTitle').textContent = '🔓 Unlock: ' + currentPdf.title;
+
+  // ✅ SAME PAYMENT LINK FOR ALL PDFs
+  document.getElementById('payLink').href = PAYMENT_LINK;
+  document.getElementById('payLinkFallback').href = PAYMENT_LINK;
+
+  document.getElementById('payModal').classList.add('active');
+}
+
+function closeModal(id) {
+  document.getElementById(id).classList.remove('active');
+}
+
+/* =========================================================
+   ✅ VERIFY PAYMENT & GENERATE UNIQUE CODE
+   ========================================================= */
+function verifyPayment() {
+  const ref = document.getElementById('paymentRef').value.trim();
+
+  if (!ref || ref.length < 6) {
+    showToast('⚠️ Valid Payment ID / UTR daalein (min 6 chars)', 'error');
+    return;
+  }
+
+  // 🎲 Generate unique access code
+  const newCode = generateAccessCode();
+
+  // Save to localStorage
+  localStorage.setItem('code_' + currentPdf.id, newCode);
+  localStorage.setItem('payment_' + currentPdf.id, ref);
+  currentPdf.accessCode = newCode;
+
+  // Show code
+  document.getElementById('payStep').style.display = 'none';
+  document.getElementById('codeStep').style.display = 'block';
+  document.getElementById('generatedCode').textContent = newCode;
+
+  showToast('✅ Payment verified! Access Code mil gaya', 'success');
+  renderCards();
+}
+
+function openAfterCode() {
+  closeModal('payModal');
+  if (currentPdf) openViewer(currentPdf);
+}
+
+/* =========================================================
+   🔑 ENTER CODE
+   ========================================================= */
+function openWithSavedCode(pdfId) {
+  currentPdf = PDF_LIST.find(p => p.id === pdfId);
+  if (!currentPdf) return;
+
+  const saved = localStorage.getItem('code_' + currentPdf.id);
+  if (saved) {
+    currentPdf.accessCode = saved;
+    openViewer(currentPdf);
+    return;
+  }
+
+  document.getElementById('codeInput').value = '';
+  document.getElementById('codeModal').classList.add('active');
+}
+
+function submitCode() {
+  const input = document.getElementById('codeInput').value.trim().toUpperCase();
+  if (!input) { showToast('⚠️ Code daalein!', 'error'); return; }
+
+  if (currentPdf && input === currentPdf.accessCode.toUpperCase()) {
+    localStorage.setItem('code_' + currentPdf.id, currentPdf.accessCode);
+    closeModal('codeModal');
+    openViewer(currentPdf);
+    showToast('✅ Access Granted!', 'success');
+  } else {
+    showToast('❌ Galat code!', 'error');
+  }
+}
+
+/* =========================================================
+   📖 VIEWER
+   ========================================================= */
+function openViewer(pdf) {
+  document.getElementById('viewerTitle').textContent = '📄 ' + pdf.title;
+
+  let url = pdf.pdfUrl;
+
+  // Google Drive link ko preview format me convert
+  if (url.includes('drive.google.com')) {
+    const match = url.match(/\/d\/([^\/]+)/) || url.match(/id=([^&]+)/);
+    if (match) {
+      url = 'https://drive.google.com/file/d/' + match[1] + '/preview';
+    }
+  } else {
+    url = url + '#toolbar=0&navpanes=0&scrollbar=1&view=FitH';
+  }
+
+  document.getElementById('pdfFrame').src = url;
+  document.getElementById('viewerScreen').classList.add('active');
+}
+
+function closeViewer() {
+  document.getElementById('viewerScreen').classList.remove('active');
+  document.getElementById('pdfFrame').src = '';
+}
+
+/* =========================================================
+   🔒 SECURITY
+   ========================================================= */
+document.addEventListener('contextmenu', e => {
+  e.preventDefault();
+  showToast('⛔ Right-click disabled!', 'error');
+});
+
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && ['p','s','u','c','a'].includes(e.key.toLowerCase())) {
+    e.preventDefault();
+    showToast('⛔ Ye action allowed nahi hai!', 'error');
+    return false;
+  }
+  if (e.key === 'F12') {
+    e.preventDefault();
+    showToast('⛔ DevTools disabled!', 'error');
+    return false;
+  }
+});
+
+document.addEventListener('copy', e => { e.preventDefault(); showToast('⛔ Copy disabled!', 'error'); });
+document.addEventListener('cut', e => e.preventDefault());
+document.addEventListener('selectstart', e => e.preventDefault());
+document.addEventListener('dragstart', e => e.preventDefault());
+
+window.addEventListener('beforeprint', e => {
+  e.preventDefault();
+  showToast('⛔ Printing disabled!', 'error');
+  return false;
+});
+
+window.print = function() {
+  showToast('⛔ Printing disabled!', 'error');
+};
+
+/* =========================================================
+   🔔 TOAST
+   ========================================================= */
+let toastTimer;
+function showToast(msg, type = '') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show ' + type;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.className = 'toast ' + type, 2500);
+}
+</script>
+</body>
+</html>
